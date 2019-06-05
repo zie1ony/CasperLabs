@@ -4,20 +4,20 @@ use std::sync::{Arc, Mutex, MutexGuard, PoisonError, RwLock};
 use std::time::{Duration, Instant};
 
 #[derive(Debug, Copy, Clone)]
-pub enum AccumlationError {
+pub enum AccumulationError {
     PoisonError,
 }
 
-impl<T> From<PoisonError<T>> for AccumlationError {
+impl<T> From<PoisonError<T>> for AccumulationError {
     fn from(error: PoisonError<T>) -> Self {
-        AccumlationError::PoisonError
+        AccumulationError::PoisonError
     }
 }
 
-impl fmt::Display for AccumlationError {
+impl fmt::Display for AccumulationError {
     fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
         match self {
-            AccumlationError::PoisonError => write!(f, "thread was poisoned"),
+            AccumulationError::PoisonError => write!(f, "thread was poisoned"),
         }
     }
 }
@@ -58,7 +58,7 @@ impl<T: Clone> Accumulator<T> {
         }
     }
 
-    pub fn push(&self, t: T) -> Result<(), AccumlationError> {
+    pub fn push(&self, t: T) -> Result<(), AccumulationError> {
         if let Ok(mut main_guard) = self.main.try_lock() {
             let mut alt_guard = self.alt.lock()?;
             if !alt_guard.is_empty() {
@@ -79,7 +79,7 @@ impl<T: Clone> Accumulator<T> {
         }
     }
 
-    pub fn drain(&self) -> Result<Vec<T>, AccumlationError> {
+    pub fn drain(&self) -> Result<Vec<T>, AccumulationError> {
         let mut main_guard = self.main.lock()?;
         let mut timer_guard = self.timer.write()?;
         let ret = main_guard.drain(..).collect();
