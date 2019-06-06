@@ -9,22 +9,20 @@ use metrics_scraper::accumulator::Drainer;
 
 fn parse_line(item: String) -> Option<String> {
     const TIME_SERIES_DATA_KEY: &str = "time-series-data";
-    let ret = {
-        match shared::logging::logger::LogLineItem::from_log_line(&item) {
-            Some(log_line_item) => {
-                if let Some(metric) = log_line_item
-                    .properties
-                    .get(&TIME_SERIES_DATA_KEY.to_string())
-                {
-                    return Some(metric.to_string());
-                }
 
-                None
+    match shared::logging::logger::LogLineItem::from_log_line(&item) {
+        Some(log_line_item) => {
+            if let Some(metric) = log_line_item
+                .properties
+                .get(&TIME_SERIES_DATA_KEY.to_string())
+            {
+                return Some(metric.to_string());
             }
-            None => None,
+
+            None
         }
-    };
-    ret
+        None => None,
+    }
 }
 
 fn handler_factory<D: Drainer<String>>(drainer: D) -> impl FnMut(Request<Body>) -> Response<Body> {

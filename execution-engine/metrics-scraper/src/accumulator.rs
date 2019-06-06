@@ -45,21 +45,19 @@ impl<T> Clone for Accumulator<T> {
     }
 }
 
-pub trait Pusher<T> {
+pub trait Pusher<T>: Clone + Send + Sync {
     fn push(&self, t: T) -> Result<(), AccumulationError>;
 }
 
-impl<T: Clone> Pusher<T> for Accumulator<T> {
+impl<T: Clone + Send + Sync> Pusher<T> for Accumulator<T> {
     fn push(&self, t: T) -> Result<(), AccumulationError> {
         if let Ok(mut main_guard) = self.main.try_lock() {
             let mut alt_guard = self.alt.lock()?;
             if !alt_guard.is_empty() {
                 main_guard.append(&mut alt_guard);
             }
-            if {
-                let timer = self.timer.read()?;
-                timer.elapsed() > *self.poll_length
-            } {
+            let timer = self.timer.read()?;
+            if timer.elapsed() > *self.poll_length {
                 main_guard.pop_front();
             }
             main_guard.push_back(t);
