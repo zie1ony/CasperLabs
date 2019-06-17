@@ -865,8 +865,9 @@ impl Executor<Module> for WasmiExecutor {
             Value::Account(a) => a,
             other => {
                 return ExecutionResult::precondition_failure(
-                    ::engine_state::error::Error::ExecError(Error::TypeMismatch(
-                        TypeMismatch::new("Account".to_string(), other.type_string()),
+                    ::engine_state::error::Error::PreprocessingError(format!(
+                        "{} does not point at Account value but {}.",
+                        acct_key, other.type_string()
                     )),
                 )
             }
