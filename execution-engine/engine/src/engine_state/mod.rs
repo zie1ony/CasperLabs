@@ -17,6 +17,7 @@ use wasm_prep::Preprocessor;
 
 use self::error::{Error, RootNotFound};
 use self::execution_result::ExecutionResult;
+use common::value::account::PublicKey;
 use execution::{self, Executor};
 use tracking_copy::TrackingCopy;
 
@@ -60,6 +61,7 @@ where
         prestate_hash: Blake2bHash,
         gas_limit: u64,
         protocol_version: u64,
+        authorization_keys: Vec<PublicKey>,
         correlation_id: CorrelationId,
         executor: &E,
         preprocessor: &P,
@@ -84,6 +86,7 @@ where
             nonce,
             gas_limit,
             protocol_version,
+            authorization_keys,
             correlation_id,
             tracking_copy,
             self.nonce_check,

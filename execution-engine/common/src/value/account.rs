@@ -225,6 +225,10 @@ impl AssociatedKeys {
     pub fn get_all(&self) -> &BTreeMap<PublicKey, Weight> {
         &self.0
     }
+
+    pub fn contains(&self, key: &PublicKey) -> bool {
+        self.0.contains_key(key)
+    }
 }
 
 #[derive(PartialEq, Eq, Clone, Debug)]
@@ -303,6 +307,16 @@ impl Account {
     /// with old contents but with nonce increased by 1.
     pub fn increment_nonce(&mut self) {
         self.nonce += 1;
+    }
+
+    /// Checks whether all authorization keys are associated with this account.
+    pub fn validate_authorization_keys<I: IntoIterator<Item = PublicKey>>(
+        &self,
+        authorization_keys: I,
+    ) -> bool {
+        authorization_keys
+            .into_iter()
+            .all(|key| self.associated_keys.contains(&key))
     }
 }
 

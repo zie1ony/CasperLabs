@@ -738,6 +738,9 @@ impl From<ExecutionResult> for ipc::DeployResult {
                         execution_error(storage_err.to_string(), cost, effect)
                     }
                     EngineError::PreprocessingError(error_msg) => precondition_failure(error_msg),
+                    authorization_failure @ EngineError::AuthorizationFailure => {
+                        precondition_failure(authorization_failure.to_string())
+                    }
                     EngineError::ExecError(exec_error) => match exec_error {
                         ExecutionError::GasLimit => {
                             let mut deploy_result = ipc::DeployResult::new();

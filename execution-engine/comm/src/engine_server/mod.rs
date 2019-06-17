@@ -5,6 +5,7 @@ use std::marker::{Send, Sync};
 use std::time::Instant;
 
 use common::key::Key;
+use common::value::account::PublicKey;
 use execution_engine::engine_state::error::Error as EngineError;
 use execution_engine::engine_state::execution_result::ExecutionResult;
 use execution_engine::engine_state::EngineState;
@@ -333,6 +334,29 @@ where
                 Key::Account(dest)
             };
 
+            let authorization_keys_res: Result<Vec<PublicKey>, ExecutionResult> = deploy
+                .get_authorization_keys()
+                .iter()
+                .map(|bytes| {
+                    if bytes.len() != 32 {
+                        let err = EngineError::PreprocessingError(
+                            "Authorization keys should be 32 bytes long each.".to_string(),
+                        );
+                        let failure = ExecutionResult::precondition_failure(err);
+                        Err(failure)
+                    } else {
+                        let mut buff = [0; 32];
+                        buff.copy_from_slice(bytes);
+                        Ok(PublicKey::new(buff))
+                    }
+                })
+                .collect();
+
+            let authorization_keys = match authorization_keys_res {
+                Ok(keys) => keys,
+                Err(error) => return Ok(error.into()),
+            };
+
             let timestamp = deploy.timestamp;
             let nonce = deploy.nonce;
             let gas_limit = deploy.gas_limit as u64;
@@ -347,6 +371,7 @@ where
                     prestate_hash,
                     gas_limit,
                     protocol_version,
+                    authorization_keys,
                     correlation_id,
                     executor,
                     preprocessor,

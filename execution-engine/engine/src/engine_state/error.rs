@@ -6,6 +6,8 @@ use shared::newtypes::Blake2bHash;
 pub enum Error {
     #[fail(display = "{}", _0)]
     PreprocessingError(String),
+    #[fail(display = "Authorization failure: Keys do not belong to an account.")]
+    AuthorizationFailure,
     #[fail(display = "Execution error")]
     ExecError(::execution::Error),
     #[fail(display = "Storage error")]

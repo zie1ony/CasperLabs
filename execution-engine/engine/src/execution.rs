@@ -25,6 +25,7 @@ use shared::transform::TypeMismatch;
 use storage::global_state::StateReader;
 
 use args::Args;
+use common::value::account::PublicKey;
 use engine_state::execution_result::ExecutionResult;
 use function_index::FunctionIndex;
 use resolvers::create_module_resolver;
@@ -822,6 +823,7 @@ pub trait Executor<A> {
         nonce: u64,
         gas_limit: u64,
         protocol_version: u64,
+        authorization_keys: Vec<PublicKey>,
         correlation_id: CorrelationId,
         tc: Rc<RefCell<TrackingCopy<R>>>,
         nonce_check: bool,
@@ -842,6 +844,7 @@ impl Executor<Module> for WasmiExecutor {
         nonce: u64,
         gas_limit: u64,
         protocol_version: u64,
+        authorization_keys: Vec<PublicKey>,
         correlation_id: CorrelationId,
         tc: Rc<RefCell<TrackingCopy<R>>>,
         nonce_check: bool,
@@ -867,11 +870,19 @@ impl Executor<Module> for WasmiExecutor {
                 return ExecutionResult::precondition_failure(
                     ::engine_state::error::Error::PreprocessingError(format!(
                         "{} does not point at Account value but {}.",
-                        acct_key, other.type_string()
+                        acct_key,
+                        other.type_string()
                     )),
                 )
             }
         };
+
+        if authorization_keys.is_empty() || !account.validate_authorization_keys(authorization_keys)
+        {
+            return ExecutionResult::precondition_failure(
+                ::engine_state::error::Error::AuthorizationFailure,
+            );
+        }
 
         if nonce_check {
             // Check the difference of a request nonce and account nonce.
@@ -1091,6 +1102,7 @@ mod tests {
             invalid_nonce,
             100u64,
             1u64,
+            Vec::new(),
             CorrelationId::new(),
             tc,
             true,
@@ -1117,5 +1129,107 @@ mod tests {
                 }
             }
         }
+    }
+
+    // Helper method for executing a deploy with supplied `keys` as `authorization_keys` of the deploy.
+    // Valid keys (ones that are associated with the account) are: [0u8; 32] and [10u8; 32].
+    // They cannot be passed as arguments to this function as rustc doesn't allow to capture
+    // environment in functions.
+    fn exec_with_authorization_keys(keys: Vec<PublicKey>) -> ExecutionResult {
+        let init_nonce = 1u64;
+        let next_nonce = init_nonce + 1;
+        let account_address = [0u8; 32];
+
+        struct DummyReader;
+        impl StateReader<Key, Value> for DummyReader {
+            type Error = ::storage::error::Error;
+
+            fn read(
+                &self,
+                _correlation_id: CorrelationId,
+                key: &Key,
+            ) -> Result<Option<Value>, Self::Error> {
+                let pub_key: [u8; 32] = match key {
+                    Key::Account(pub_key) => *pub_key,
+                    _ => panic!("Key must be of an Account type"),
+                };
+
+                // NOTE: I had to put it all here as rustc doesn't allow to capture environment in functions.
+                let associated_key_valid = PublicKey::new([10; 32]);
+
+                let associated_keys = {
+                    let mut tmp = AssociatedKeys::new(PublicKey::new(pub_key), Weight::new(1));
+                    tmp.add_key(associated_key_valid, Weight::new(1))
+                        .expect("Adding associated key should succeed.");
+                    tmp
+                };
+
+                let mock_account = Account::new(
+                    pub_key,
+                    1,
+                    BTreeMap::new(),
+                    PurseId::new(URef::new([0u8; 32], AccessRights::READ_ADD_WRITE)),
+                    associated_keys,
+                    Default::default(),
+                    AccountActivity::new(BlockTime(0), BlockTime(0)),
+                );
+
+                Ok(Some(Value::Account(mock_account)))
+            }
+        }
+
+        let executor = WasmiExecutor;
+        let account_key: Key = Key::Account(account_address);
+        let parity_module: Module = ModuleBuilder::new()
+            .with_import(ImportEntry::new(
+                "env".to_string(),
+                "memory".to_string(),
+                External::Memory(MemoryType::new(16, Some(::wasm_prep::MEM_PAGES))),
+            ))
+            .build();
+
+        let tc: Rc<RefCell<TrackingCopy<DummyReader>>> =
+            Rc::new(RefCell::new(TrackingCopy::new(DummyReader)));
+
+        executor.exec(
+            parity_module,
+            &[],
+            account_key,
+            0u64,
+            next_nonce,
+            100u64,
+            1u64,
+            keys,
+            CorrelationId::new(),
+            tc,
+            true,
+        )
+    }
+
+    fn fail_with_authorization_keys(keys: Vec<PublicKey>) {
+        let exec_result = exec_with_authorization_keys(keys);
+
+        match exec_result {
+            ExecutionResult::Success { .. } => panic!("This test should have failed."),
+            ExecutionResult::Failure {
+                error,
+                effect,
+                cost,
+            } => {
+                assert_eq!(effect.1, HashMap::new());
+                assert_eq!(cost, 0);
+                assert_matches!(error, ::engine_state::error::Error::AuthorizationFailure);
+            }
+        }
+    }
+
+    #[test]
+    fn should_fail_no_charge_no_effects_incorrect_authorization_keys() {
+        fail_with_authorization_keys(std::iter::once(PublicKey::new([11; 32])).collect())
+    }
+
+    #[test]
+    fn should_fail_no_charge_no_effects_no_authorization_keys() {
+        fail_with_authorization_keys(Vec::new())
     }
 }

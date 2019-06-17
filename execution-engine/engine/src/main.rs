@@ -226,6 +226,7 @@ fn main() {
             state_hash,
             gas_limit,
             protocol_version,
+            Vec::new(),
             correlation_id,
             &wasmi_executor,
             &wasmi_preprocessor,
