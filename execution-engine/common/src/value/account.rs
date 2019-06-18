@@ -37,6 +37,16 @@ pub struct ActionThresholds {
 }
 
 impl ActionThresholds {
+    pub fn new(deployment_threshold: Weight, key_management_threhold: Weight) -> ActionThresholds {
+        assert!(
+            deployment_threshold < key_management_threhold,
+            "Deployment threshold can't be higher than key managament."
+        );
+        ActionThresholds {
+            deployment: deployment_threshold,
+            key_management: key_management_threhold,
+        }
+    }
     // NOTE: I chose to not provide one method for setting action thresholds b/c `InactiveAccountRecovery`
     // threshold is 0. If there was a polymorphic method then trying to set threshold for `InactiveAccountRecovery`
     // would have to return an error.
@@ -64,8 +74,8 @@ impl ActionThresholds {
         }
     }
 
-    pub fn deployment(&self) -> &Weight {
-        &self.deployment
+    pub fn deployment(&self) -> Weight {
+        self.deployment
     }
 
     pub fn key_management(&self) -> &Weight {
@@ -312,8 +322,20 @@ impl Account {
     /// Checks whether all authorization keys are associated with this account.
     pub fn validate_authorization_keys(&self, authorization_keys: &[PublicKey]) -> bool {
         authorization_keys
-            .into_iter()
+            .iter()
             .all(|key| self.associated_keys.contains(key))
+    }
+
+    // TODO: Change return type once Michał's PR on account recovery is merged.
+    /// Checks whether sum of keys weight is higher than deployment threshold.
+    pub fn authorize_deployment(&self, authorization_keys: &[PublicKey]) -> bool {
+        let keys_weight: u8 = authorization_keys
+            .iter()
+            .filter_map(|key| self.associated_keys().get(&key))
+            .map(|w| w.0)
+            .sum();
+
+        Weight::new(keys_weight) >= self.action_thresholds().deployment()
     }
 }
 

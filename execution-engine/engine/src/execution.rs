@@ -60,6 +60,7 @@ pub enum Error {
     },
     /// Reverts execution with a provided status
     Revert(u32),
+    DeploymentAuthorizationFailure,
 }
 
 impl fmt::Display for Error {
@@ -699,6 +700,7 @@ where
             refs,
             known_urefs,
             args,
+            current_runtime.context.authorization_keys().clone(),
             current_runtime.context.account(),
             key,
             current_runtime.context.gas_limit(),
@@ -877,7 +879,8 @@ impl Executor<Module> for WasmiExecutor {
             }
         };
 
-        if authorization_keys.is_empty() || !account.validate_authorization_keys(&authorization_keys)
+        if authorization_keys.is_empty()
+            || !account.validate_authorization_keys(&authorization_keys)
         {
             return ExecutionResult::precondition_failure(
                 ::engine_state::error::Error::AuthorizationFailure,
@@ -922,6 +925,15 @@ impl Executor<Module> for WasmiExecutor {
         // only nonce update can be returned.
         let effects_snapshot = tc.borrow().effect();
 
+        let authorize_deployment = if !account.authorize_deployment(&authorization_keys) {
+            Err(Error::DeploymentAuthorizationFailure)
+        } else {
+            Ok(())
+        };
+
+        // TODO: figure out the cost of failing here.
+        on_fail_charge!(authorize_deployment, 100, effects_snapshot);
+
         let arguments: Vec<Vec<u8>> = if args.is_empty() {
             Vec::new()
         } else {
@@ -935,6 +947,7 @@ impl Executor<Module> for WasmiExecutor {
             &mut uref_lookup_local,
             known_urefs,
             arguments,
+            authorization_keys,
             &account,
             acct_key,
             gas_limit,
@@ -977,7 +990,7 @@ mod tests {
     use common::key::Key;
     use common::uref::{AccessRights, URef};
     use common::value::account::{
-        AccountActivity, AssociatedKeys, BlockTime, PublicKey, PurseId, Weight,
+        AccountActivity, ActionThresholds, AssociatedKeys, BlockTime, PublicKey, PurseId, Weight,
     };
     use common::value::{Account, Value};
     use engine_state::execution_effect::ExecutionEffect;
@@ -986,6 +999,7 @@ mod tests {
     use parity_wasm::builder::ModuleBuilder;
     use parity_wasm::elements::{External, ImportEntry, MemoryType, Module};
     use shared::newtypes::CorrelationId;
+    use shared::transform::Transform;
     use std::cell::RefCell;
     use std::collections::btree_map::BTreeMap;
     use std::collections::HashMap;
@@ -1102,7 +1116,7 @@ mod tests {
             invalid_nonce,
             100u64,
             1u64,
-            Vec::new(),
+            std::iter::once(PublicKey::new([0u8; 32])).collect(),
             CorrelationId::new(),
             tc,
             true,
@@ -1131,55 +1145,52 @@ mod tests {
         }
     }
 
-    // Helper method for executing a deploy with supplied `keys` as `authorization_keys` of the deploy.
-    // Valid keys (ones that are associated with the account) are: [0u8; 32] and [10u8; 32].
-    // They cannot be passed as arguments to this function as rustc doesn't allow to capture
-    // environment in functions.
-    fn exec_with_authorization_keys(keys: Vec<PublicKey>) -> ExecutionResult {
-        let init_nonce = 1u64;
-        let next_nonce = init_nonce + 1;
-        let account_address = [0u8; 32];
+    struct TestFixture {
+        init_nonce: u64,
+        associated_keys: AssociatedKeys,
+        action_thresholds: ActionThresholds,
+        account_address: [u8; 32],
+        account_activity: AccountActivity,
+    }
 
-        struct DummyReader;
-        impl StateReader<Key, Value> for DummyReader {
-            type Error = ::storage::error::Error;
+    impl StateReader<Key, Value> for TestFixture {
+        type Error = ::storage::error::Error;
 
-            fn read(
-                &self,
-                _correlation_id: CorrelationId,
-                key: &Key,
-            ) -> Result<Option<Value>, Self::Error> {
-                let pub_key: [u8; 32] = match key {
-                    Key::Account(pub_key) => *pub_key,
-                    _ => panic!("Key must be of an Account type"),
-                };
+        fn read(
+            &self,
+            _correlation_id: CorrelationId,
+            key: &Key,
+        ) -> Result<Option<Value>, Self::Error> {
+            let pub_key: [u8; 32] = match key {
+                Key::Account(pub_key) => *pub_key,
+                _ => panic!("Key must be of an Account type"),
+            };
 
-                // NOTE: I had to put it all here as rustc doesn't allow to capture environment in functions.
-                let associated_key_valid = PublicKey::new([10; 32]);
+            assert_eq!(
+                pub_key, self.account_address,
+                "Requested account different that one from the fixture."
+            );
 
-                let associated_keys = {
-                    let mut tmp = AssociatedKeys::new(PublicKey::new(pub_key), Weight::new(1));
-                    tmp.add_key(associated_key_valid, Weight::new(1))
-                        .expect("Adding associated key should succeed.");
-                    tmp
-                };
+            let mock_account = Account::new(
+                self.account_address,
+                1,
+                BTreeMap::new(),
+                PurseId::new(URef::new([0u8; 32], AccessRights::READ_ADD_WRITE)),
+                self.associated_keys.clone(),
+                self.action_thresholds.clone(),
+                self.account_activity.clone(),
+            );
 
-                let mock_account = Account::new(
-                    pub_key,
-                    1,
-                    BTreeMap::new(),
-                    PurseId::new(URef::new([0u8; 32], AccessRights::READ_ADD_WRITE)),
-                    associated_keys,
-                    Default::default(),
-                    AccountActivity::new(BlockTime(0), BlockTime(0)),
-                );
-
-                Ok(Some(Value::Account(mock_account)))
-            }
+            Ok(Some(Value::Account(mock_account)))
         }
+    }
+
+    // Helper method for executing a deploy with supplied `keys` as `authorization_keys` of the deploy.
+    fn exec_with_authorization_keys(fixture: TestFixture, keys: Vec<PublicKey>) -> ExecutionResult {
+        let next_nonce = fixture.init_nonce + 1;
 
         let executor = WasmiExecutor;
-        let account_key: Key = Key::Account(account_address);
+        let account_key: Key = Key::Account(fixture.account_address);
         let parity_module: Module = ModuleBuilder::new()
             .with_import(ImportEntry::new(
                 "env".to_string(),
@@ -1188,8 +1199,8 @@ mod tests {
             ))
             .build();
 
-        let tc: Rc<RefCell<TrackingCopy<DummyReader>>> =
-            Rc::new(RefCell::new(TrackingCopy::new(DummyReader)));
+        let tc: Rc<RefCell<TrackingCopy<TestFixture>>> =
+            Rc::new(RefCell::new(TrackingCopy::new(fixture)));
 
         executor.exec(
             parity_module,
@@ -1207,7 +1218,15 @@ mod tests {
     }
 
     fn fail_with_authorization_keys(keys: Vec<PublicKey>) {
-        let exec_result = exec_with_authorization_keys(keys);
+        let account_addr = [0u8; 32];
+        let test_fixture = TestFixture {
+            init_nonce: 1,
+            associated_keys: AssociatedKeys::new(PublicKey::new(account_addr), Weight::new(1)),
+            action_thresholds: Default::default(),
+            account_address: account_addr,
+            account_activity: AccountActivity::new(BlockTime(0), BlockTime(0)),
+        };
+        let exec_result = exec_with_authorization_keys(test_fixture, keys);
 
         match exec_result {
             ExecutionResult::Success { .. } => panic!("This test should have failed."),
@@ -1231,5 +1250,63 @@ mod tests {
     #[test]
     fn should_fail_no_charge_no_effects_no_authorization_keys() {
         fail_with_authorization_keys(Vec::new())
+    }
+
+    #[test]
+    fn should_fail_charge_effects_insufficient_weight_authorization_keys() {
+        let account_addr = [0u8; 32];
+        let init_nonce = 1;
+        let associated_keys = {
+            let mut tmp = AssociatedKeys::new(PublicKey::new(account_addr), Weight::new(1));
+            tmp.add_key(PublicKey::new([10u8; 32]), Weight::new(1))
+                .expect("Adding associated key should succeed.");
+            tmp
+        };
+        let test_fixture = TestFixture {
+            init_nonce,
+            associated_keys,
+            action_thresholds: ActionThresholds::new(Weight::new(2), Weight::new(10)),
+            account_address: account_addr,
+            account_activity: AccountActivity::new(BlockTime(0), BlockTime(0)),
+        };
+        let exec_result = exec_with_authorization_keys(
+            test_fixture,
+            std::iter::once(PublicKey::new([10u8; 32])).collect(),
+        );
+
+        match exec_result {
+            ExecutionResult::Success { .. } => panic!("This test should have failed."),
+            ExecutionResult::Failure {
+                error,
+                effect,
+                cost,
+            } => {
+                assert_matches!(
+                    error,
+                    ::engine_state::error::Error::ExecError(
+                        ::execution::Error::DeploymentAuthorizationFailure
+                    )
+                );
+                assert_eq!(cost, 100, "Should charge."); // TODO: decide on cost
+                assert_eq!(effect.1.len(), 1, "Expected only one effect.");
+                let transform = effect
+                    .1
+                    .get(&Key::Account(account_addr))
+                    .expect("Account should be changed.");
+                if let Transform::Write(value) = transform {
+                    if let Value::Account(new_account) = value {
+                        assert_eq!(
+                            new_account.nonce() - 1,
+                            init_nonce,
+                            "Should increase the nonce."
+                        );
+                    } else {
+                        panic!("Expected Account object.");
+                    }
+                } else {
+                    panic!("Expected Transform::Write");
+                }
+            }
+        }
     }
 }
