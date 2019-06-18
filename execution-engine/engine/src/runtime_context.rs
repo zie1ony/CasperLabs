@@ -10,7 +10,7 @@ use rand_chacha::ChaChaRng;
 use common::bytesrepr::{deserialize, ToBytes};
 use common::key::{Key, LOCAL_SEED_SIZE};
 use common::uref::{AccessRights, URef};
-use common::value::account::Account;
+use common::value::account::{Account, PublicKey};
 use common::value::Value;
 use shared::newtypes::{Blake2bHash, CorrelationId, Validated};
 use storage::global_state::StateReader;
@@ -29,6 +29,7 @@ pub struct RuntimeContext<'a, R> {
     known_urefs: HashMap<URefAddr, HashSet<AccessRights>>,
     account: &'a Account,
     args: Vec<Vec<u8>>,
+    authorization_keys: Vec<PublicKey>,
     // Key pointing to the entity we are currently running
     //(could point at an account or contract in the global state)
     base_key: Key,
@@ -50,6 +51,7 @@ where
         uref_lookup: &'a mut BTreeMap<String, Key>,
         known_urefs: HashMap<URefAddr, HashSet<AccessRights>>,
         args: Vec<Vec<u8>>,
+        authorization_keys: Vec<PublicKey>,
         account: &'a Account,
         base_key: Key,
         gas_limit: u64,
@@ -64,6 +66,7 @@ where
             uref_lookup,
             known_urefs,
             args,
+            authorization_keys,
             account,
             base_key,
             gas_limit,
@@ -93,6 +96,10 @@ where
 
     pub fn account(&self) -> &'a Account {
         self.account
+    }
+
+    pub fn authorization_keys(&self) -> &Vec<PublicKey> {
+        &self.authorization_keys
     }
 
     pub fn args(&self) -> &Vec<Vec<u8>> {
@@ -482,6 +489,7 @@ mod tests {
             uref_map,
             known_urefs,
             Vec::new(),
+            Vec::new(),
             &account,
             base_key,
             0,
@@ -772,6 +780,7 @@ mod tests {
             &mut uref_map,
             known_urefs,
             Vec::new(),
+            Vec::new(),
             &account,
             contract_key,
             0,
@@ -822,6 +831,7 @@ mod tests {
             Rc::clone(&tc),
             &mut uref_map,
             known_urefs,
+            Vec::new(),
             Vec::new(),
             &account,
             other_contract_key,
