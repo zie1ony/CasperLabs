@@ -877,7 +877,7 @@ impl Executor<Module> for WasmiExecutor {
             }
         };
 
-        if authorization_keys.is_empty() || !account.validate_authorization_keys(authorization_keys)
+        if authorization_keys.is_empty() || !account.validate_authorization_keys(&authorization_keys)
         {
             return ExecutionResult::precondition_failure(
                 ::engine_state::error::Error::AuthorizationFailure,

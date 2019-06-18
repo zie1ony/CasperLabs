@@ -310,13 +310,10 @@ impl Account {
     }
 
     /// Checks whether all authorization keys are associated with this account.
-    pub fn validate_authorization_keys<I: IntoIterator<Item = PublicKey>>(
-        &self,
-        authorization_keys: I,
-    ) -> bool {
+    pub fn validate_authorization_keys(&self, authorization_keys: &[PublicKey]) -> bool {
         authorization_keys
             .into_iter()
-            .all(|key| self.associated_keys.contains(&key))
+            .all(|key| self.associated_keys.contains(key))
     }
 }
 
