@@ -742,6 +742,11 @@ where
             }
         }
     }
+
+    // TODO: use the flag.
+    fn is_debug_mode(&self) -> bool {
+        true
+    }
 }
 
 fn as_usize(u: u32) -> usize {
@@ -954,6 +959,18 @@ where
                 let dest_ptr = Args::parse(args)?;
                 self.get_blocktime(dest_ptr)?;
                 Ok(None)
+            }
+
+            FunctionIndex::ExtPrintlnIndex => {
+                let (value_ptr, value_size) = Args::parse(args)?;
+
+                if self.is_debug_mode() {
+                    let msg = self.string_from_mem(value_ptr, value_size)?;
+                    println!("{}", msg);
+                    Ok(None)
+                } else {
+                    panic!("ext_println ffi is available only in debug mode.")
+                }
             }
 
             FunctionIndex::GasFuncIndex => {

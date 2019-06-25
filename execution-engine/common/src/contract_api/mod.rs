@@ -337,6 +337,11 @@ pub fn is_valid<T: Into<Value>>(t: T) -> bool {
     result != 0
 }
 
+pub fn ext_println(msg: &str) {
+    let (value_ptr, value_size, _bytes) = str_ref_to_ptr(msg);
+    unsafe { ext_ffi::ext_println(value_ptr, value_size) }
+}
+
 /// Adds a public key with associated weight to an account.
 pub fn add_associated_key(public_key: PublicKey, weight: Weight) -> Result<(), AddKeyFailure> {
     let (public_key_ptr, _public_key_size, _bytes) = to_ptr(&public_key);

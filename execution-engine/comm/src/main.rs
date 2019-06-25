@@ -80,6 +80,8 @@ const ARG_LOG_LEVEL: &str = "loglevel";
 const ARG_LOG_LEVEL_VALUE: &str = "LOGLEVEL";
 const ARG_LOG_LEVEL_HELP: &str = "[ fatal | error | warning | info | debug ]";
 
+const DEBUG_MODE_STR: &str = "debug-mode";
+
 // runnable
 const SIGINT_HANDLE_EXPECT: &str = "Error setting Ctrl-C handler";
 const RUNNABLE_CHECK_INTERVAL_SECONDS: u64 = 3;
@@ -92,6 +94,10 @@ lazy_static! {
 // LogSettings instance to be used within this application
 lazy_static! {
     static ref LOG_SETTINGS: log_settings::LogSettings = get_log_settings();
+}
+
+lazy_static! {
+    static ref DEBUG_MODE: bool = get_debug_mode();
 }
 
 fn main() {
@@ -183,6 +189,10 @@ fn get_args() -> ArgMatches<'static> {
                 .required(true)
                 .help(ARG_SOCKET_HELP)
                 .index(1),
+        )
+        .arg(
+            Arg::with_name(DEBUG_MODE_STR)
+                .required(false)
         )
         .arg(Arg::with_name(VALIDATE_NONCE).required(false))
         .get_matches()
@@ -287,6 +297,11 @@ fn get_log_settings() -> log_settings::LogSettings {
     let log_level_filter = LogLevelFilter::from_input(matches.value_of(ARG_LOG_LEVEL));
 
     LogSettings::new(PROC_NAME, log_level_filter)
+}
+
+fn get_debug_mode() -> bool {
+    let matches: &clap::ArgMatches = &*ARG_MATCHES;
+    matches.is_present(DEBUG_MODE_STR)
 }
 
 /// Logs listening on socket message
