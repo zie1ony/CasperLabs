@@ -1,30 +1,33 @@
-// third-party dependencies
-extern crate clap;
-#[macro_use]
-extern crate lazy_static;
-
 // internal dependencies
 extern crate binascii;
+// third-party dependencies
+extern crate clap;
 extern crate common;
 extern crate execution_engine;
+#[macro_use]
+extern crate lazy_static;
+extern crate parking_lot;
 extern crate shared;
 extern crate storage;
 extern crate wasm_prep;
 
-use clap::{App, Arg, ArgMatches};
 use std::collections::BTreeMap;
 use std::fmt::Debug;
 use std::fs::File;
 use std::io::prelude::*;
 use std::iter::Iterator;
 use std::str;
+use std::sync::Arc;
+
+use clap::{App, Arg, ArgMatches};
+use parking_lot::Mutex;
 
 use common::key::Key;
 use common::value::account::BlockTime;
+use execution_engine::engine_state::EngineState;
 use execution_engine::engine_state::error::RootNotFound;
 use execution_engine::engine_state::execution_effect::ExecutionEffect;
 use execution_engine::engine_state::execution_result::ExecutionResult;
-use execution_engine::engine_state::EngineState;
 use execution_engine::execution::WasmiExecutor;
 use shared::init::mocked_account;
 use shared::logging;
@@ -32,9 +35,9 @@ use shared::logging::log_level::LogLevel;
 use shared::logging::log_settings;
 use shared::logging::log_settings::{LogLevelFilter, LogSettings};
 use shared::newtypes::{Blake2bHash, CorrelationId};
-use storage::global_state::in_memory::InMemoryGlobalState;
 use storage::global_state::CommitResult;
 use storage::global_state::History;
+use storage::global_state::in_memory::InMemoryGlobalState;
 use wasm_prep::{wasm_costs::WasmCosts, WasmiPreprocessor};
 
 // exe / proc
@@ -208,7 +211,8 @@ fn main() {
     let global_state = InMemoryGlobalState::from_pairs(CorrelationId::new(), &init_state)
         .expect("Could not create global state");
     let mut state_hash: Blake2bHash = global_state.root_hash;
-    let engine_state = EngineState::new(global_state, validate_nonce);
+    let global_state_arc = Arc::new(Mutex::new(global_state));
+    let engine_state = EngineState::new(global_state_arc, validate_nonce);
 
     let wasmi_executor = WasmiExecutor;
     let wasm_costs = WasmCosts::from_version(protocol_version).unwrap_or_else(|| {

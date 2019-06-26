@@ -1,9 +1,3 @@
-pub mod error;
-pub mod execution_effect;
-pub mod execution_result;
-pub mod op;
-pub mod utils;
-
 use std::cell::RefCell;
 use std::collections::btree_map::BTreeMap;
 use std::collections::HashMap;
@@ -14,25 +8,31 @@ use std::sync::Arc;
 use parking_lot::Mutex;
 use rand::RngCore;
 
+use common::bytesrepr::ToBytes;
 use common::key::Key;
 use common::uref::{AccessRights, URef};
+use common::value::{Contract, U512, Value};
 use common::value::account::{BlockTime, PurseId};
-use common::value::{Contract, Value, U512};
-use shared::init;
-use shared::newtypes::{Blake2bHash, CorrelationId};
-use shared::transform::{Transform, TypeMismatch};
-use storage::global_state::{CommitResult, History};
-use wasm_prep::wasm_costs::WasmCosts;
-use wasm_prep::Preprocessor;
-
-use self::error::{Error, RootNotFound};
-use self::execution_result::ExecutionResult;
-use common::bytesrepr::ToBytes;
 use engine_state::execution_effect::ExecutionEffect;
 use engine_state::op::Op;
 use engine_state::utils::WasmiBytes;
 use execution::{self, Executor};
+use shared::init;
+use shared::newtypes::{Blake2bHash, CorrelationId};
+use shared::transform::{Transform, TypeMismatch};
+use storage::global_state::{CommitResult, History};
 use tracking_copy::TrackingCopy;
+use wasm_prep::Preprocessor;
+use wasm_prep::wasm_costs::WasmCosts;
+
+use self::error::{Error, RootNotFound};
+use self::execution_result::ExecutionResult;
+
+pub mod error;
+pub mod execution_effect;
+pub mod execution_result;
+pub mod op;
+pub mod utils;
 
 pub struct EngineState<H> {
     // Tracks the "state" of the blockchain (or is an interface to it).
@@ -213,8 +213,7 @@ where
     H: History,
     H::Error: Into<execution::Error>,
 {
-    pub fn new(state: H, nonce_check: bool) -> EngineState<H> {
-        let state = Arc::new(Mutex::new(state));
+    pub fn new(state: Arc<Mutex<H>>, nonce_check: bool) -> EngineState<H> {
         EngineState { state, nonce_check }
     }
 

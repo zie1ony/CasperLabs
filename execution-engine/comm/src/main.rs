@@ -1,13 +1,13 @@
+extern crate casperlabs_engine_grpc_server;
 extern crate clap;
 extern crate ctrlc;
 extern crate dirs;
+extern crate execution_engine;
 extern crate grpc;
 #[macro_use]
 extern crate lazy_static;
 extern crate lmdb;
-
-extern crate casperlabs_engine_grpc_server;
-extern crate execution_engine;
+extern crate parking_lot;
 extern crate shared;
 extern crate storage;
 
@@ -15,24 +15,24 @@ use std::collections::btree_map::BTreeMap;
 use std::fs;
 use std::path::PathBuf;
 use std::str::FromStr;
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
 use clap::{App, Arg, ArgMatches};
 use dirs::home_dir;
-use execution_engine::engine_state::EngineState;
 use lmdb::DatabaseFlags;
-
-use shared::logging::log_settings::{LogLevelFilter, LogSettings};
-use shared::logging::{log_level, log_settings};
-use shared::newtypes::CorrelationId;
-use shared::os::get_page_size;
-use shared::{init, logging, socket};
-use storage::global_state::lmdb::LmdbGlobalState;
-use storage::trie_store::lmdb::{LmdbEnvironment, LmdbTrieStore};
+use parking_lot::Mutex;
 
 use casperlabs_engine_grpc_server::engine_server;
+use execution_engine::engine_state::EngineState;
+use shared::{init, logging, socket};
+use shared::logging::{log_level, log_settings};
+use shared::logging::log_settings::{LogLevelFilter, LogSettings};
+use shared::newtypes::CorrelationId;
+use shared::os::get_page_size;
+use storage::global_state::lmdb::LmdbGlobalState;
+use storage::trie_store::lmdb::{LmdbEnvironment, LmdbTrieStore};
 
 // exe / proc
 const PROC_NAME: &str = "casperlabs-engine-grpc-server";
@@ -277,7 +277,7 @@ fn get_engine_state(
         .expect(LMDB_GLOBAL_STATE_EXPECT)
     };
 
-    EngineState::new(global_state, nonce_check)
+    EngineState::new(Arc::new(Mutex::new(global_state)), nonce_check)
 }
 
 /// Builds and returns log_settings

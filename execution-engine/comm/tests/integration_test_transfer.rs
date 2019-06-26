@@ -1,28 +1,28 @@
-extern crate grpc;
-
+extern crate casperlabs_engine_grpc_server;
 extern crate common;
 extern crate execution_engine;
+extern crate grpc;
+extern crate parking_lot;
 extern crate shared;
 extern crate storage;
 
-extern crate casperlabs_engine_grpc_server;
-
-#[allow(unused)]
-mod test_support;
-
 use std::collections::HashMap;
+use std::sync::Arc;
 
 use grpc::RequestOptions;
+use parking_lot::Mutex;
 
+use casperlabs_engine_grpc_server::engine_server::ipc_grpc::ExecutionEngineService;
+use common::bytesrepr::ToBytes;
 use common::key::Key;
-use common::value::{Account, Value, U512};
+use common::uref::URef;
+use common::value::{Account, U512, Value};
 use execution_engine::engine_state::EngineState;
 use shared::transform::Transform;
 use storage::global_state::in_memory::InMemoryGlobalState;
 
-use casperlabs_engine_grpc_server::engine_server::ipc_grpc::ExecutionEngineService;
-use common::bytesrepr::ToBytes;
-use common::uref::URef;
+#[allow(unused)]
+mod test_support;
 
 const INITIAL_GENESIS_AMOUNT: u32 = 1_000_000;
 
@@ -92,7 +92,7 @@ fn should_transfer_to_account() {
     let account_key = Key::Account(ACCOUNT_1_ADDR);
 
     let global_state = InMemoryGlobalState::empty().unwrap();
-    let engine_state = EngineState::new(global_state, false);
+    let engine_state = EngineState::new(Arc::new(Mutex::new(global_state)), false);
 
     // Run genesis
 
@@ -182,7 +182,7 @@ fn should_transfer_from_account_to_account() {
     let account_2_key = Key::Account(ACCOUNT_2_ADDR);
 
     let global_state = InMemoryGlobalState::empty().unwrap();
-    let engine_state = EngineState::new(global_state, false);
+    let engine_state = EngineState::new(Arc::new(Mutex::new(global_state)), false);
 
     // Run genesis
 
@@ -312,7 +312,7 @@ fn should_transfer_to_existing_account() {
     let account_2_key = Key::Account(ACCOUNT_2_ADDR);
 
     let global_state = InMemoryGlobalState::empty().unwrap();
-    let engine_state = EngineState::new(global_state, false);
+    let engine_state = EngineState::new(Arc::new(Mutex::new(global_state)), false);
 
     // Run genesis
 
@@ -448,7 +448,7 @@ fn should_transfer_to_existing_account() {
 #[test]
 fn should_fail_when_insufficient_funds() {
     let global_state = InMemoryGlobalState::empty().unwrap();
-    let engine_state = EngineState::new(global_state, false);
+    let engine_state = EngineState::new(Arc::new(Mutex::new(global_state)), false);
 
     // Run genesis
 
