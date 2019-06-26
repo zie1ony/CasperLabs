@@ -322,14 +322,13 @@ mod tests {
     use common::bytesrepr::ToBytes;
     use common::key::Key;
     use common::uref::{AccessRights, URef};
-    use common::value::{Contract, Value, U512};
+    use common::value::{Contract, U512, Value};
+    use engine_state::create_genesis_effects;
+    use engine_state::utils::WasmiBytes;
     use execution;
     use shared::test_utils;
     use shared::transform::Transform;
     use wasm_prep::wasm_costs::WasmCosts;
-
-    use engine_state::create_genesis_effects;
-    use engine_state::utils::WasmiBytes;
 
     const GENESIS_ACCOUNT_ADDR: [u8; 32] = [6u8; 32];
     const PROTOCOL_VERSION: u64 = 1;
