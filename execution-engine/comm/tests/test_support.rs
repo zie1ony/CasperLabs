@@ -19,11 +19,11 @@ use casperlabs_engine_grpc_server::engine_server::ipc::{
 };
 use casperlabs_engine_grpc_server::engine_server::ipc_grpc::ExecutionEngineService;
 use casperlabs_engine_grpc_server::engine_server::mappings::{
-    to_domain_validators, CommitTransforms,
+    CommitTransforms, to_domain_validators,
 };
 use casperlabs_engine_grpc_server::engine_server::state::{BigInt, ProtocolVersion};
-use execution_engine::engine_state::utils::WasmiBytes;
 use execution_engine::engine_state::EngineState;
+use execution_engine::engine_state::utils::WasmiBytes;
 use shared::test_utils;
 use shared::transform::Transform;
 use storage::global_state::in_memory::InMemoryGlobalState;
@@ -453,6 +453,20 @@ impl WasmTestBuilder {
             );
         }
         self
+    }
+
+    pub fn is_error(&self) -> bool {
+        let exec_response = self
+            .exec_responses
+            .last()
+            .expect("Expected to be called after run()")
+            .clone();
+        let deploy_result = exec_response
+            .get_success()
+            .get_deploy_results()
+            .get(0)
+            .expect("Unable to get first deploy result");
+        deploy_result.get_execution_result().has_error()
     }
 
     /// Gets the transform map that's cached between runs

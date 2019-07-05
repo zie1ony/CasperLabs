@@ -18,5 +18,6 @@ members = [
     "test-contracts/known-urefs",
     "test-contracts/get-caller",
     "test-contracts/get-caller-subcall",
+    "test-contracts/deserialize-error",
     "wasm-prep",
 ]
