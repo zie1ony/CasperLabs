@@ -18,15 +18,15 @@ use wasmi::{
 
 use args::Args;
 use common::bytesrepr::{deserialize, Error as BytesReprError, ToBytes, U32_SIZE};
-use common::contract_api::argsparser::ArgsParser;
 use common::contract_api::{PurseTransferResult, TransferResult};
+use common::contract_api::argsparser::ArgsParser;
 use common::key::Key;
 use common::uref::{AccessRights, URef};
+use common::value::{Account, U512, Value};
 use common::value::account::{
-    ActionType, AddKeyFailure, BlockTime, PublicKey, PurseId, RemoveKeyFailure,
-    SetThresholdFailure, Weight, PUBLIC_KEY_SIZE,
+    ActionType, AddKeyFailure, BlockTime, PUBLIC_KEY_SIZE, PublicKey, PurseId,
+    RemoveKeyFailure, SetThresholdFailure, Weight,
 };
-use common::value::{Account, Value, U512};
 use engine_state::execution_result::ExecutionResult;
 use execution::Error::{KeyNotFound, URefNotFound};
 use function_index::FunctionIndex;
@@ -1264,13 +1264,17 @@ where
     }
 }
 
-/// Groups a collection of urefs by their addresses and accumulates access rights per key
-pub fn extract_access_rights_from_urefs<I: IntoIterator<Item = URef>>(
+fn extract_access_rights<
+    T,
+    I: IntoIterator<Item = T>,
+    F: Fn(T) -> Option<([u8; 32], Option<AccessRights>)>,
+>(
     input: I,
+    f: F,
 ) -> HashMap<URefAddr, HashSet<AccessRights>> {
     input
         .into_iter()
-        .map(|uref: URef| (uref.addr(), uref.access_rights()))
+        .filter_map(f)
         .group_by(|(key, _)| *key)
         .into_iter()
         .map(|(key, group)| {
@@ -1284,25 +1288,20 @@ pub fn extract_access_rights_from_urefs<I: IntoIterator<Item = URef>>(
         .collect()
 }
 
+/// Groups a collection of urefs by their addresses and accumulates access rights per key
+pub fn extract_access_rights_from_urefs<I: IntoIterator<Item = URef>>(
+    input: I,
+) -> HashMap<URefAddr, HashSet<AccessRights>> {
+    extract_access_rights(input, |uref: URef| {
+        Some((uref.addr(), uref.access_rights()))
+    })
+}
+
 /// Groups a collection of keys by their address and accumulates access rights per key.
 pub fn extract_access_rights_from_keys<I: IntoIterator<Item = Key>>(
     input: I,
 ) -> HashMap<URefAddr, HashSet<AccessRights>> {
-    input
-        .into_iter()
-        .map(key_to_tuple)
-        .flatten()
-        .group_by(|(key, _)| *key)
-        .into_iter()
-        .map(|(key, group)| {
-            (
-                key,
-                group
-                    .filter_map(|(_, x)| x)
-                    .collect::<HashSet<AccessRights>>(),
-            )
-        })
-        .collect()
+    extract_access_rights(input, key_to_tuple)
 }
 
 pub fn create_rng(account_addr: [u8; 32], nonce: u64) -> ChaChaRng {
@@ -1515,10 +1514,10 @@ mod tests {
 
     use common::key::Key;
     use common::uref::{AccessRights, URef};
+    use common::value::{Account, Value};
     use common::value::account::{
         AccountActivity, AssociatedKeys, BlockTime, PublicKey, PurseId, Weight,
     };
-    use common::value::{Account, Value};
     use engine_state::execution_effect::ExecutionEffect;
     use engine_state::execution_result::ExecutionResult;
     use execution::{create_rng, Executor, WasmiExecutor};
