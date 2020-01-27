@@ -339,7 +339,7 @@ impl ERC20Test {
     }
 }
 
-fn get_cost(response: &[Rc<ExecutionResult>]) -> U512 {
+pub fn get_cost(response: &[Rc<ExecutionResult>]) -> U512 {
     let motes = Motes::from_gas(
         utils::get_exec_costs(response)
             .into_iter()

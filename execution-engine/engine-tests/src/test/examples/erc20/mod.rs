@@ -1,4 +1,4 @@
-mod erc20_test;
+pub mod erc20_test;
 
 use engine_test_support::low_level::{DEFAULT_ACCOUNT_ADDR, DEFAULT_ACCOUNT_INITIAL_BALANCE};
 use types::U512;
