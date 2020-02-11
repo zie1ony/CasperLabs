@@ -1,6 +1,12 @@
 # Vesting Smart Contract
 
-Implementation of a vesting smart contract for Casperlabs. 
+This is an implementation of a vesting smart contract for Casperlabs so that one can lock in some tokens to be given after some set time frame.
+
+It includes a vesting smart contract separated into the smart contract layer that uses the contract logic and a smart contract test.
+
+With some CLX tokens, you can lock in some tokens to give to someone after a set time (see parameters below). A user can withdraw the number of tokens after a set time. This contract also provides for a drip amount whereby, for example daily, users can retrieve a given amount, e.g. 15 tokens for a given time, after which the tokens are no longer available.
+
+`admin_release_duration` defines a time frame whereby an admin can take back the amount after the set time elapses.
 
 ## Available methods
 
@@ -10,11 +16,11 @@ Implementation of a vesting smart contract for Casperlabs.
 * Admin Release
 * Withdraw
 
-After the deployment, additional smart contract is saved under the `vesting_proxy` key. Pause, Unpause, Admin Release and Withdraw metods have to call this contract and specifie vesting contract hash as a first argument.
+After deployment, an additional smart contract is saved under the `vesting_proxy` key. Pause, Unpause, Admin Release and Withdraw methods have to call this contract and specify the vesting contract hash as a first argument.
 
 ## Deploy
 
-When deploing following parameters have to be specified in the given order.
+When deploying, the following parameters have to be specified in the given order.
 
 #### Parameters
 
@@ -33,7 +39,7 @@ When deploing following parameters have to be specified in the given order.
 
 ## Pause
 
-Pausing stops the internal contract's clock. Only Admin can pause the contract. 
+Pausing stops the internal contract's clock. Only the Admin can pause the contract.
 
 #### Parameters
 
@@ -44,7 +50,7 @@ Pausing stops the internal contract's clock. Only Admin can pause the contract.
 
 ## Unpause
 
-Unpausing resumes the internal contract's clock. Only Admin can unpause the contract. 
+Unpausing resumes the internal contract's clock. Only the Admin can unpause the contract.
 
 #### Parameters
 
@@ -57,7 +63,7 @@ Unpausing resumes the internal contract's clock. Only Admin can unpause the cont
 
 #### Parameters
 
-If the contract was paused without unpausing `admin_release_duration` ago, then Admin can call this method to withdraw all of CLX tokens from the account to Admin's main purse.
+If the contract was paused without unpausing an `admin_release_duration` ago, then the Admin can call this method to withdraw all CLX tokens from the account to the Admin's main purse.
 
 | Name | Type | Description |
 | ---  | --- | --- |
@@ -68,8 +74,7 @@ If the contract was paused without unpausing `admin_release_duration` ago, then 
 
 #### Parameters
 
-Recipient account can withdraw available CLX amount from the smart contract.
-It's transferd to the main purse of the recipient.
+The Recipient account can withdraw the available CLX amount from the smart contract. This is transferred to the main purse of the recipient.
 
 | Name | Type | Description |
 | ---  | --- | --- |
