@@ -1,12 +1,6 @@
 # Vesting Smart Contract
 
-This is an implementation of a vesting smart contract for Casperlabs so that one can lock in some tokens to be given after some set time frame.
-
-It includes a vesting smart contract separated into the smart contract layer that uses the contract logic and a smart contract test.
-
-With some CLX tokens, you can lock in some tokens to give to someone after a set time (see parameters below). A user can withdraw the number of tokens after a set time. This contract also provides for a drip amount whereby, for example daily, users can retrieve a given amount, e.g. 15 tokens for a given time, after which the tokens are no longer available.
-
-`admin_release_duration` defines a time frame whereby an admin can take back the amount after the set time elapses.
+This is an implementation of a vesting smart contract for Casperlabs including a vesting smart contract separated into the smart contract layer that uses the contract logic and a smart contract test.
 
 ## Available methods
 
