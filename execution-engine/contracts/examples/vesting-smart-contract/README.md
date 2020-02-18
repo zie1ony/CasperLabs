@@ -1,6 +1,6 @@
 # Vesting Smart Contract
 
-This is an implementation of a vesting smart contract for Casperlabs including a vesting smart contract separated into the smart contract layer that uses the contract logic and a smart contract test.
+This is an implementation incudes a vesting smart contract for CasperLabs separated into the smart contract layer that uses the contract logic and a smart contract test.
 
 ## Available methods
 
