@@ -73,27 +73,36 @@ object FinalityDetectorUtil {
   }
 
   /**
-    * Get level zero messages of the specified validator and specified candidateBlock
+    * Returns list of messages (ordered from latest to oldest) from `validator`
+    * that are descendant (along the main-tree path) of the `candidateBlockHash`.
     */
   private[casper] def levelZeroMsgsOfValidator[F[_]: Monad](
       dag: DagRepresentation[F],
       validator: Validator,
-      candidateBlockHash: BlockHash
-  ): F[List[Message]] =
-    dag.latestMessage(validator).map(s => if (s.size > 1) None else s.headOption).flatMap {
-      case Some(latestMsgByValidator) =>
+      candidateBlock: Message,
+      isHighway: Boolean
+  ): F[List[Message]] = {
+    val latestMessage =
+      if (!isHighway) dag.latestMessage(validator)
+      else {
+        dag.latestInEra(candidateBlock.eraId).flatMap(_.latestMessage(validator))
+      }
+    latestMessage flatMap {
+      case messages if messages.size == 1 =>
         DagOperations
-          .bfTraverseF[F, Message](List(latestMsgByValidator))(
+          .bfTraverseF[F, Message](messages.toList)(
             previousAgreedBlockFromTheSameValidator(
               dag,
               _,
-              candidateBlockHash,
+              candidateBlock.messageHash,
               validator
             )
           )
           .toList
-      case None => List.empty[Message].pure[F]
+      case _ =>
+        List.empty[Message].pure[F]
     }
+  }
 
   /*
    * Traverses back the j-DAG of `block` (one step at a time), following `validator`'s blocks
@@ -152,10 +161,10 @@ object FinalityDetectorUtil {
       validator => {
         // When V(j) happens to be an equivocator, put 0L in the corresponding cell
         if (equivocators.contains(validator)) {
-          0L
+          Message.asJRank(0L)
         } else {
           // When V(j)-swimlane is empty, put 0L in the corresponding cell
-          latestBlockDagLevelAsMap.getOrElse(validator, 0L)
+          latestBlockDagLevelAsMap.getOrElse(validator, Message.asJRank(0L))
         }
       }
     )
