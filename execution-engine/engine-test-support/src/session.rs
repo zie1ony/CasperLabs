@@ -79,6 +79,12 @@ impl SessionBuilder {
         self
     }
 
+    /// Returns `self` with the provided block time set.
+    pub fn with_block_time(mut self, block_time: u64) -> Self {
+        self.er_builder = self.er_builder.with_block_time(block_time);
+        self
+    }
+
     /// Builds the [`Session`].
     pub fn build(self) -> Session {
         let mut rng = rand::thread_rng();
